@@ -109,11 +109,15 @@ lateinit var lifecycleOwner:LifecycleOwner
 lateinit var backgroundExecutor:ExecutorService
 var toast: Toast? = null
 //lateinit var outputOptions:ImageCapture.OutputFileOptions
+data class Marker(var x:Double = 0.0, var y:Double = 0.0, var z:Double = 0.0)
 class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListener {
     lateinit var mBtAdapter: BluetoothManager
     private var mBtDevice: BluetoothDevice? = null
-    private var mBtHidDevice: BluetoothHidDevice? = null
+        private var mBtHidDevice: BluetoothHidDevice? = null
     private var mBluetoothHidDeviceAppQosSettings: BluetoothHidDeviceAppQosSettings? = null
+    private val makers:Marker = Marker()
+    private val subMakers:Marker = Marker()
+
 
     lateinit var localView:View
     private val cameraIndex = mutableStateOf(3)
@@ -131,6 +135,8 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
     val mDevices: MutableState<ArrayList<BluetoothDevice?>> = mutableStateOf( arrayListOf())
 
     val ID_KEYBOARD: Byte = 1
+    val y = mutableStateOf(0f)
+    val x = mutableStateOf(0f)
 
     private val permissionList = listOf(
         android.Manifest.permission.CAMERA,
@@ -140,6 +146,56 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
         android.Manifest.permission.BLUETOOTH_SCAN,
         android.Manifest.permission.ACCESS_COARSE_LOCATION,
     )
+    val REPORT_MAP_KEYBOARD =
+            byteArrayOf(
+            0x05.toByte(),
+            0x07.toByte(),
+            0x15.toByte(),
+            0x00.toByte(),
+            0x25.toByte(),
+            0x01.toByte(),
+            0x75.toByte(),
+            0x01.toByte(),
+            0x95.toByte(),
+            0x08.toByte(),
+            0x09.toByte(),
+            0xE0.toByte(),
+            0x09.toByte(),
+            0xE1.toByte(),
+            0x09.toByte(),
+            0xE2.toByte(),
+            0x09.toByte(),
+            0xE3.toByte(),
+            0x09.toByte(),
+            0xE4.toByte(),
+            0x09.toByte(),
+            0xE5.toByte(),
+            0x09.toByte(),
+            0xE6.toByte(),
+            0x09.toByte(),
+            0xE7.toByte(),
+            0x81.toByte(),
+            0x02.toByte(),
+            0x05.toByte(),
+            0x07.toByte(),
+            0x95.toByte(),
+            0x01.toByte(),
+            0x75.toByte(),
+            0x08.toByte(),
+            0x15.toByte(),
+            0x04.toByte(),
+            0x25.toByte(),
+            0xDF.toByte(),
+            0x05.toByte(),
+            0x07.toByte(),
+            0x19.toByte(),
+            0x04.toByte(),
+            0x29.toByte(),
+            0xDF.toByte(),
+            0x81.toByte(),
+            0x00.toByte()
+        )
+
 
     private val descriptors = byteArrayOf(
         // HID descriptor
@@ -209,65 +265,115 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
         0xc0.toByte(),                          // END_COLLECTION
 
     )
-    private val descriptor = byteArrayOf( // HID descriptor
-        0x09,  // bLength
-        0x21,  // bDescriptorType - HID
-        0x11,
-        0x01,  // bcdHID (little endian - 1.11)
-        0x00,  // bCountryCode
-        0x01,  // bNumDescriptors (min 1)
-        0x22,  // bDescriptorType - Report
-        0x30,
-        0x00,
-        0x05.toByte(),
-        0x01.toByte(),
-        0x09.toByte(),
-        0x06.toByte(),
-        0xA1.toByte(),
-        0x01.toByte(),
-        0x85.toByte(),
-        ID_KEYBOARD,
-        0x05.toByte(),
-        0x07.toByte(),
-        0x19.toByte(),
-        0xE0.toByte(),
-        0x29.toByte(),
-        0xE7.toByte(),
-        0x15.toByte(),
-        0x00.toByte(),
-        0x25.toByte(),
-        0x01.toByte(),
-        0x75.toByte(),
-        0x01.toByte(),
-        0x95.toByte(),
-        0x08.toByte(),
-        0x81.toByte(),
-        0x02.toByte(),
-        0x75.toByte(),
-        0x08.toByte(),
-        0x95.toByte(),
-        0x01.toByte(),
-        0x81.toByte(),
-        0x01.toByte(),
-        0x75.toByte(),
-        0x08.toByte(),
-        0x95.toByte(),
-        0x06.toByte(),
-        0x15.toByte(),
-        0x00.toByte(),
-        0x25.toByte(),
-        0x65.toByte(),
-        0x05.toByte(),
-        0x07.toByte(),
-        0x19.toByte(),
-        0x00.toByte(),
-        0x29.toByte(),
-        0x65.toByte(),
-        0x81.toByte(),
-        0x00.toByte(),
-        0xC0.toByte()
-    )
 
+    private val descriptor = byteArrayOf( // HID descriptor 0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+        0x09, 0x06,        // Usage (Keyboard)
+        0xA1.toByte(), 0x01,        // Collection (Application)
+        0x85.toByte(), 0x01,        //   Report ID (1)
+        0x05, 0x07,        //   Usage Page (Kbrd/Keypad)
+        0x75, 0x01,        //   Report Size (1)
+        0x95.toByte(), 0x08,        //   Report Count (8)
+        0x19, 0xE0.toByte(),        //   Usage Minimum (0xE0)
+        0x29, 0xE7.toByte(),        //   Usage Maximum (0xE7)
+        0x15, 0x00,        //   Logical Minimum (0)
+        0x25, 0x01,        //   Logical Maximum (1)
+        0x81.toByte(), 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+        0x95.toByte(), 0x06,        //   Report Count (6)
+        0x75, 0x08,        //   Report Size (8)
+        0x15, 0x00,        //   Logical Minimum (0)
+        0x25, 0x7f,        //   Logical Maximum (127)
+        0x05, 0x07,        //   Usage Page (Kbrd/Keypad)
+        0x19, 0x00,        //   Usage Minimum (0x00)
+        0x29, 0x7f,        //   Usage Maximum (0x7f)
+        0x81.toByte(), 0x00,        //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+        0xC0.toByte(),              // End Collection
+        0x05, 0x0C,        // Usage Page (Consumer)
+        0x09, 0x01,        // Usage (Consumer Control)
+        0xA1.toByte(), 0x01,        // Collection (Application)
+        0x85.toByte(), 0x02,        //   Report ID (2)
+        0x05, 0x0C,        //   Usage Page (Consumer)
+        0x15, 0x00,        //   Logical Minimum (0)
+        0x25, 0x01,        //   Logical Maximum (1)
+        0x75, 0x01,        //   Report Size (1)
+        0x95.toByte(), 0x08,        //   Report Count (8)
+        0x09, 0xB5.toByte(),        //   Usage (Scan Next Track)
+        0x09, 0xB6.toByte(),        //   Usage (Scan Previous Track)
+        0x09, 0xB7.toByte(),        //   Usage (Stop)
+        0x09, 0xB8.toByte(),        //   Usage (Eject)
+        0x09, 0xCD.toByte(),        //   Usage (Play/Pause)
+        0x09, 0xE2.toByte(),        //   Usage (Mute)
+        0x09, 0xE9.toByte(),        //   Usage (Volume Increment)
+        0x09, 0xEA.toByte(),        //   Usage (Volume Decrement)
+        0x81.toByte(), 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+        0xC0.toByte(),              // End Collection
+
+        0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+        0x09, 0x02,                    // USAGE (Mouse)
+        0xa1.toByte(), 0x01,                    // COLLECTION (Application)
+        0x85.toByte(), 0x03,                    //   Report ID (3)
+        0x09, 0x01,                    //   USAGE (Pointer)
+        0xa1.toByte(), 0x00,                    //   COLLECTION (Physical)
+        0x05, 0x09,                    //     USAGE_PAGE (Button)
+        0x19, 0x01,                    //     USAGE_MINIMUM (Button 1)
+        0x29, 0x03,                    //     USAGE_MAXIMUM (Button 3)
+        0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
+        0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
+        0x95.toByte(), 0x03,                    //     REPORT_COUNT (3)
+        0x75, 0x01,                    //     REPORT_SIZE (1)
+        0x81.toByte(), 0x02,                    //     INPUT (Data,Var,Abs)
+        0x95.toByte(), 0x01,                    //     REPORT_COUNT (1)
+        0x75, 0x05,                    //     REPORT_SIZE (5)
+        0x81.toByte(), 0x03,                    //     INPUT (Cnst,Var,Abs)
+        0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
+        0x09, 0x30,                    //     USAGE (X)
+        0x09, 0x31,                    //     USAGE (Y)
+        0x15, 0x81.toByte(),                    //     LOGICAL_MINIMUM (-127)
+        0x25, 0x7f,                    //     LOGICAL_MAXIMUM (127)
+        0x75, 0x08,                    //     REPORT_SIZE (8)
+        0x95.toByte(), 0x02,                    //     REPORT_COUNT (2)
+        0x81.toByte(), 0x06,                    //     INPUT (Data,Var,Rel)
+        0xc0.toByte(),                          //   END_COLLECTION
+        0xc0.toByte(),                          // END_COLLECTION
+
+        // 69 bytes
+        0x05, 0x01,                     // Usage Page (Generic Desktop)
+        0x09, 0x05,                     // Usage (Game Pad)
+        0xa1.toByte(), 0x01,                     // Collection (Application)
+        0x85.toByte(), 0x04,                     //   Report ID (4)
+
+        0x05, 0x01,                     //     Usage Page (Generic Desktop)
+        0x09, 0x00,                     //     Usage (Undefined)
+        0x75, 0x08,                     //     Report Size (8)
+        0x95.toByte(), 0x01,                     //     Report Count (1)
+        0x81.toByte(), 0x03,                     //     Input (Constant, Variable, Absolute)
+
+        0xa1.toByte(), 0x00,                     //   Collection (Physical)
+        0x05, 0x09,                     //     Usage Page (Button)
+        0x19, 0x01,                     //     Usage Minimum (Button 1)
+        0x29, 0x10,                     //     Usage Maximum (Button 16)
+        0x15, 0x00,                     //     Logical Minimum (0)
+        0x25, 0x01,                     //     Logical Maximum (1)
+        0x75, 0x01,                     //     Report Size (1)
+        0x95.toByte(), 0x10,                     //     Report Count (16)
+        0x81.toByte(), 0x02,                     //     Input (Data, Variable, Absolute)
+
+        0x75, 0x10,                   //     Report Size (16)
+        0x16, 0x00, 0x80.toByte(),             //     Logical Minimum (-32768)
+        0x26, 0xff.toByte(), 0x7f,             //     Logical Maximum (32767)
+        0x36, 0x00, 0x80.toByte(),             //     Physical Minimum (-32768)
+        0x46, 0xff.toByte(), 0x7f,             //     Physical Maximum (32767)
+        0x05, 0x01,                   //     Usage Page (Generic Desktop)
+        0x09, 0x01,                   //     Usage (Pointer)
+        0xa1.toByte(), 0x00,                   //     Collection (Physical)
+        0x95.toByte(), 0x02,                   //       Report Count (2)
+        0x05, 0x01,                   //       Usage Page (Generic Desktop)
+        0x09, 0x30,                   //       Usage (X)
+        0x09, 0x31,                   //       Usage (Y)
+        0x81.toByte(), 0x02,                   //       Input (Data, Variable, Absolute)
+        0xc0.toByte(),                         //     End Collection
+        0xc0.toByte(),                         //   End Collection
+        0xc0.toByte(),                         // End Collection
+    )
 
     fun checkPermission() {
         permissionList.forEach {
@@ -288,7 +394,7 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
     @SuppressLint("MissingPermission")
     private fun btConnect(device: BluetoothDevice?) {
 
-        Log.i(TAG, "btConnect: device=$device")
+//        Log.i(TAG, "btConnect: device=$device")
 
         // disconnect from everything else
         for (btDev in mBtHidDevice!!.getDevicesMatchingConnectionStates(
@@ -312,7 +418,7 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
             mBtDevice = device
             mBtHidDevice!!.connect(device)
 
-            Log.i(TAG, "btConnect: connect")
+            Log.i(TAG, "btConnect: ${mBtHidDevice!!.connectedDevices} |<-- $device")
 
         }
     }
@@ -323,6 +429,7 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                 if (profile == BluetoothProfile.HID_DEVICE) {
                     Log.d(TAG, "Got HID device")
                     mBtHidDevice = proxy as BluetoothHidDevice
+                    Log.d(TAG, "Get HID device")
                     mBluetoothHidDeviceAppQosSettings =
                         BluetoothHidDeviceAppQosSettings(1, 800, 9, 0, 11250, -1)
 
@@ -355,10 +462,6 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                                 device: BluetoothDevice,
                                 state: Int,
                             ) {
-                                Log.v(
-                                    TAG,
-                                    "onConnectionStateChanged: device=$device deviceName=${device.name} state=$state"
-                                )
                                 if (device == mBtDevice) {
                                     when (state) {
                                         BluetoothProfile.STATE_DISCONNECTED -> {
@@ -377,6 +480,10 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                                     }
 //                                    btConnect(device);
                                 }
+                                Log.v(
+                                    TAG,
+                                    "onConnectionStateChanged: device=$device deviceName=${device.name} state=${states.value}"
+                                )
                             }
                         })
                 }
@@ -392,7 +499,6 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
     }
 
     private fun btListDevices() {
-        mBtAdapter = this.getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
         if ((ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED)
             || (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)) {
             requestPermissions(
@@ -425,7 +531,6 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
         super.onCreate(savedInstanceState)
         checkPermission()
         mBtAdapter = this.getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
-        btListDevices()
         if (!mBtAdapter.adapter.isEnabled) {
             mBtAdapter.adapter.enable()
         } else {
@@ -489,6 +594,7 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
 //                                Icon(Icons.Rounded.FavoriteBorder, contentDescription= "", modifier = Modifier.size(50.dp))
 //                            }
 
+                            Text(text = "${x.value} ${y.value}")
                             Row(modifier = Modifier.padding(top = 10.dp)) {
                                 Icon(Icons.Rounded.FavoriteBorder, contentDescription= "", modifier = Modifier
                                     .size(50.dp)
@@ -553,7 +659,8 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                                     .MixClick(
                                         interactionSource = remember { NoRippleInteractionSource() },
                                         onClick = {
-                                            Nomal()
+//                                            Nomal()
+                                            declarationDialogState = true
                                         }
                                     )
                                 )
@@ -569,16 +676,27 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                                                 TAG,
                                                 "SendRepo : ${mBtHidDevice?.connectedDevices}"
                                             )
-                                            mBtHidDevice?.connectedDevices?.forEach { btdev->
+                                            mBtHidDevice?.connectedDevices?.forEach { btdev ->
                                                 val a = mBtHidDevice!!.sendReport(
-                                                    btdev, 0, byteArrayOf(
-                                                        0x11 ,
-                                                        0xA1.toByte(),
-                                                        (0).toByte(),
-                                                        (0).toByte(),
-                                                        (0).toByte(),
-                                                        (0).toByte(),
-                                                        (0).toByte(),
+                                                    btdev, 1, byteArrayOf(
+                                                        0x00,
+                                                        0x00,
+                                                        0x00,
+                                                        0x00,
+                                                        0x00,
+                                                        0x00,
+                                                        0x04
+                                                    )
+                                                )
+                                                if (a) mBtHidDevice!!.sendReport(
+                                                    btdev, 1, byteArrayOf(
+                                                        0x00,
+                                                        0x00,
+                                                        0x00,
+                                                        0x00,
+                                                        0x00,
+                                                        0x00,
+                                                        0x00
                                                     )
                                                 )
 
@@ -696,7 +814,7 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                     minHandTrackingConfidence = viewModel.currentMinHandTrackingConfidence,
                     minHandPresenceConfidence = viewModel.currentMinHandPresenceConfidence,
                     maxNumHands = viewModel.currentMaxHands,
-                    currentDelegate = HandLandmarkerHelper.DELEGATE_GPU,
+                    currentDelegate = HandLandmarkerHelper.DELEGATE_CPU,
                     handLandmarkerHelperListener = this
                 )
             }
@@ -722,15 +840,25 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                             y= drawContext.size.height * ap.y()
                         ))
                     }
-                    Log.d("landMaker | ${index}", "${it.get(0).z()}")
+                    val wristZ = it[0].z() * drawContext.size.width;
 
+                    val z = wristZ + it[8].z()
 
-                    drawCircle(Red, 20f, Offset(
+                    Log.d("landMaker | ${index}", "${(z+0.6)} || ${it.get(0).z()}")
+                    makers.x = (drawContext.size.height * it.get(0).x()).toDouble()
+                    makers.y = (drawContext.size.height * it.get(0).y()).toDouble()
+                    makers.z = (drawContext.size.height * it.get(0).z()).toDouble()
+
+                    subMakers.x = (drawContext.size.height * it.get(0).x()).toDouble()
+                    subMakers.y = (drawContext.size.height * it.get(0).y()).toDouble()
+                    subMakers.z = (drawContext.size.height * it.get(0).z()).toDouble()
+
+                    drawCircle(Red, 20f * (1f * (wristZ + it[0].z())), Offset(
 //                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
                         x= drawContext.size.width * it.get(0).x(),
                         y= drawContext.size.height * it.get(0).y()
                     ))
-                    drawCircle(Red, 20f, Offset(
+                    drawCircle(Red, 20f*(1f - (z+0.6f)), Offset(
 //                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
                         x= drawContext.size.width * it.get(8).x(),
                         y= drawContext.size.height * it.get(8).y()
@@ -862,6 +990,11 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
     ) {
 //        result = resultBundle
         this.res.value = resultBundle
+//        if(this.res.value.results.get(0).landmarks().size > 0) {
+//            this.x.value = resultBundle.results.get(0).landmarks().get(0).get(0).z()
+//            this.y.value = resultBundle.results.get(0).landmarks().get(0).get(0).z()
+//        }
+
 //        Log.e("HelloWorld!", this.res.toString())
 //        resultBundle.results.get(0).landmarks(
 
@@ -874,7 +1007,7 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
     fun DeclarationDialog(onChangeState: () -> Unit) {
 
         val declarations = listOf("부적절한 언어 사용(욕설, 비속어)", "불쾌함 유발", "어쨋든 잘못함", "기타")
-
+        btListDevices()
         AlertDialog(
 
             // 다이얼로그 뷰 밖의 화면 클릭시, 인자로 받은 함수 실행하며 다이얼로그 상태 변경
@@ -894,6 +1027,8 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                                     onClick = {
                                         btConnect(it)
                                         onChangeState()
+                                        Log.d(TAG, mBtHidDevice?.connectedDevices.toString())
+
 
                                     }
                                 )
