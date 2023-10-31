@@ -869,13 +869,13 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                 res.value.results[0].landmarks().forEachIndexed{ index, it ->
                     Log.d("landMaker | ${index}", "========================================|<-")
 
-                    it.forEach{ap ->
-                        drawCircle(Cyan, 10f, Offset(
-//                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
-                            x= drawContext.size.width * ap.x(),
-                            y= drawContext.size.height * ap.y()
-                        ))
-                    }
+//                    it.forEach{ap ->
+//                        drawCircle(Cyan, 10f, Offset(
+////                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
+//                            x= drawContext.size.width * ap.x(),
+//                            y= drawContext.size.height * ap.y()
+//                        ))
+//                    }
                     val wristZ = it[0].z() * drawContext.size.width;
 
                     val z = wristZ + it[8].z()
@@ -889,38 +889,39 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                     subMakers.y = (drawContext.size.height * it.get(0).y()).toDouble()
                     subMakers.z = (drawContext.size.height * it.get(0).z()).toDouble()
 
-                    drawCircle(Red, 20f * (1f * (wristZ + it[0].z())), Offset(
-//                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
-                        x= drawContext.size.width * it.get(0).x(),
-                        y= drawContext.size.height * it.get(0).y()
-                    ))
-                    drawCircle(Red, 20f*(1f - (z+0.6f)), Offset(
+//                    drawCircle(Red, 20f * (1f * (wristZ + it[0].z())), Offset(
+////                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
+//                        x= drawContext.size.width * it.get(0).x(),
+//                        y= drawContext.size.height * it.get(0).y()
+//                    ))
+                    drawCircle(Red, 20f, Offset(
 //                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
                         x= drawContext.size.width * it.get(8).x(),
                         y= drawContext.size.height * it.get(8).y()
                     ))
 
-                    drawCircle(Red, 20f, Offset(
-//                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
-                        x= drawContext.size.width * it.get(5).x(),
-                        y= drawContext.size.height * it.get(5).y()
-                    ))
-
-                    drawCircle(
-                        Blue, 20f, Offset(
-//                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
-                        x= drawContext.size.width * it.get(12).x(),
-                        y= drawContext.size.height * it.get(12).y()
-                    ))
-                    drawCircle(Blue, 20f, Offset(
-//                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
-                        x= drawContext.size.width * it.get(4).x(),
-                        y= drawContext.size.height * it.get(4).y()
-                    ))
+//                    drawCircle(Red, 20f, Offset(
+////                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
+//                        x= drawContext.size.width * it.get(5).x(),
+//                        y= drawContext.size.height * it.get(5).y()
+//                    ))
+//
+//                    drawCircle(
+//                        Blue, 20f, Offset(
+////                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
+//                        x= drawContext.size.width * it.get(12).x(),
+//                        y= drawContext.size.height * it.get(12).y()
+//                    ))
+//                    drawCircle(Blue, 20f, Offset(
+////                        drawCircle(Cyan, 10f+drawContext.size.width * abs(ap.z())*0.3f, Offset(
+//                        x= drawContext.size.width * it.get(4).x(),
+//                        y= drawContext.size.height * it.get(4).y()
+//                    ))
                 }
 //                Log.d("DraW X", drawContext.size.width.toString())
 //                Log.d("DraW Y", drawContext.size.height.toString())
             }
+            //dkdkd
         })
     }
     @SuppressLint("UnsafeOptInUsageError")
