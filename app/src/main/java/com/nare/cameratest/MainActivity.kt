@@ -93,8 +93,11 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.nare.cameratest.ui.theme.CameraTestTheme
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -112,17 +115,19 @@ var toast: Toast? = null
 data class Marker(var x:Double = 0.0, var y:Double = 0.0, var z:Double = 0.0)
 class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListener {
     lateinit var mBtAdapter: BluetoothManager
+    var toggle = false
     private var mBtDevice: BluetoothDevice? = null
         private var mBtHidDevice: BluetoothHidDevice? = null
     private var mBluetoothHidDeviceAppQosSettings: BluetoothHidDeviceAppQosSettings? = null
     private val makers:Marker = Marker()
     private val subMakers:Marker = Marker()
-
+    private var accX:Float = 0f
+    private var accY:Float = 0f
 
     lateinit var localView:View
-    private val cameraIndex = mutableStateOf(3)
+    private val cameraIndex = mutableStateOf(1)
     private val states = mutableStateOf("")
-    private val makerBias = mutableStateOf(false)
+    private val makerBias = mutableStateOf(true)
     private val viewModel: MainViewModel = MainViewModel()
     private var result: HandLandmarkerHelper.ResultBundle? = null
     val res: MutableState<HandLandmarkerHelper.ResultBundle> = mutableStateOf(HandLandmarkerHelper.ResultBundle(
@@ -562,7 +567,6 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                             { declarationDialogState = false } // 다이얼로그를 숨기는 unit 함수를 인자로 줌
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-
                             CameraView(
                                 Modifier
                                     .size(300.dp, 400.dp)
@@ -670,40 +674,72 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                                     .MixClick(
                                         interactionSource = remember { NoRippleInteractionSource() },
                                         onClick = {
-                                            var modi: Byte = 3
+                                            var modi: Byte = 0
+                                            var state: Byte = 0
 //                                            modi = (1 shl 0)
                                             Log.e(
                                                 TAG,
                                                 "SendRepo : ${mBtHidDevice?.connectedDevices}"
                                             )
                                             mBtHidDevice?.connectedDevices?.forEach { btdev ->
+                                                /**
+                                                 * 마우스 HID 형식
+                                                 * byteArrayOf(0x00, 36.toByte(), 0.toByte(), 0.toByte())
+                                                 *
+                                                 * 1번째 부터
+                                                 * 클릭, 가로이동, 세로이동, 휠
+                                                 */
+
                                                 val a = mBtHidDevice!!.sendReport(
-                                                    btdev, 1, byteArrayOf(
+                                                    btdev,
+                                                    1
+                                                        .toByte()
+                                                        .toInt(),
+                                                    byteArrayOf(
                                                         0x00,
-                                                        0x00,
-                                                        0x00,
-                                                        0x00,
-                                                        0x00,
-                                                        0x00,
-                                                        0x04
+                                                        36.toByte(),
+                                                        0.toByte(),
+                                                        0.toByte()
                                                     )
                                                 )
-                                                if (a) mBtHidDevice!!.sendReport(
-                                                    btdev, 1, byteArrayOf(
+                                                mBtHidDevice!!.sendReport(
+                                                    btdev,
+                                                    1
+                                                        .toByte()
+                                                        .toInt(),
+                                                    byteArrayOf(
                                                         0x00,
-                                                        0x00,
-                                                        0x00,
-                                                        0x00,
-                                                        0x00,
-                                                        0x00,
-                                                        0x00
+                                                        0.toByte(),
+                                                        0.toByte(),
+                                                        0.toByte()
                                                     )
+                                                )
+
+
+                                                /**
+                                                 * 키보드 HID 형식
+                                                 * TODO 언젠가는 하겠지
+                                                 */
+                                                mBtHidDevice!!.sendReport(
+                                                    btdev,
+                                                    0x02
+                                                        .toByte()
+                                                        .toInt(),
+                                                    byteArrayOf(0x00, 36.toByte())
+                                                )
+                                                mBtHidDevice!!.sendReport(
+                                                    btdev,
+                                                    0x02
+                                                        .toByte()
+                                                        .toInt(),
+                                                    byteArrayOf(0x00, 0.toByte())
                                                 )
 
                                                 Log.e(
                                                     TAG,
                                                     "Sends : $a"
                                                 )
+
                                             }
 
                                         }
@@ -985,11 +1021,70 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
 //        Log.e("Camera", "")
 
     }
+    @SuppressLint("MissingPermission")
     override fun onResults(
         resultBundle: HandLandmarkerHelper.ResultBundle,
     ) {
 //        result = resultBundle
         this.res.value = resultBundle
+        if(resultBundle.inferenceTime > 0L) {
+
+            resultBundle.results[0].landmarks().forEach {
+                val pink = it[8]
+                val black = it[0]
+
+                if(toggle) {
+                    accX = pink.x()
+//                accX *= -1
+                    accY = pink.y()
+//                accY *= -1
+
+                    toggle != toggle
+                } else {
+                    accX -= pink.x()
+//                accX *= -1
+                    accY -= pink.y()
+                    mBtHidDevice?.connectedDevices?.forEach { btdev ->
+                        /**
+                         * 마우스 HID 형식
+                         * byteArrayOf(0x00, 36.toByte(), 0.toByte(), 0.toByte())
+                         *
+                         * 1번째 부터
+                         * 클릭, 가로이동, 세로이동, 휠
+                         */
+//                        GlobalScope.launch {
+//                            mBtHidDevice!!.sendReport(
+//                                btdev, 1.toByte().toInt(), byteArrayOf(0x00, (accX*400f *-1).toInt().toByte(), (accY*400f *-1).toInt().toByte(), 0.toByte())
+//                            )
+//                            mBtHidDevice!!.sendReport(
+//                                btdev, 1.toByte().toInt(), byteArrayOf(0x00, 0.toByte(), 0.toByte(), 0.toByte())
+//                            )
+//                        }
+                        mBtHidDevice!!.sendReport(
+                            btdev, 1.toByte().toInt(), byteArrayOf(0x00, (accX*400f *-1).toInt().toByte(), (accY*400f *-1).toInt().toByte(), 0.toByte())
+                        )
+                        mBtHidDevice!!.sendReport(
+                            btdev, 1.toByte().toInt(), byteArrayOf(0x00, 0.toByte(), 0.toByte(), 0.toByte())
+                        )
+
+
+                    }
+
+                    Log.e("ASI", "${1000 * accX} || ${1000 * accY}")
+                    accX = pink.x()
+                    accY = pink.y()
+
+                }
+            }
+
+
+        } else {
+            toggle = true
+            accX =0f
+            accY =0f
+        }
+
+
 //        if(this.res.value.results.get(0).landmarks().size > 0) {
 //            this.x.value = resultBundle.results.get(0).landmarks().get(0).get(0).z()
 //            this.y.value = resultBundle.results.get(0).landmarks().get(0).get(0).z()
