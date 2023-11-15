@@ -1,6 +1,8 @@
 package com.nare.cameratest
 
+import android.R.attr.text
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothHidDevice
 import android.bluetooth.BluetoothHidDeviceAppQosSettings
@@ -13,6 +15,8 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
@@ -23,6 +27,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraSelector
@@ -72,8 +77,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Color.Companion.Blue
-import androidx.compose.ui.graphics.Color.Companion.Cyan
 import androidx.compose.ui.graphics.Color.Companion.Red
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -93,11 +96,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.nare.cameratest.ui.theme.CameraTestTheme
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileWriter
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -151,230 +153,209 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
         android.Manifest.permission.BLUETOOTH_SCAN,
         android.Manifest.permission.ACCESS_COARSE_LOCATION,
     )
-    val REPORT_MAP_KEYBOARD =
-            byteArrayOf(
-            0x05.toByte(),
-            0x07.toByte(),
-            0x15.toByte(),
-            0x00.toByte(),
-            0x25.toByte(),
-            0x01.toByte(),
-            0x75.toByte(),
-            0x01.toByte(),
-            0x95.toByte(),
-            0x08.toByte(),
-            0x09.toByte(),
-            0xE0.toByte(),
-            0x09.toByte(),
-            0xE1.toByte(),
-            0x09.toByte(),
-            0xE2.toByte(),
-            0x09.toByte(),
-            0xE3.toByte(),
-            0x09.toByte(),
-            0xE4.toByte(),
-            0x09.toByte(),
-            0xE5.toByte(),
-            0x09.toByte(),
-            0xE6.toByte(),
-            0x09.toByte(),
-            0xE7.toByte(),
-            0x81.toByte(),
-            0x02.toByte(),
-            0x05.toByte(),
-            0x07.toByte(),
-            0x95.toByte(),
-            0x01.toByte(),
-            0x75.toByte(),
-            0x08.toByte(),
-            0x15.toByte(),
-            0x04.toByte(),
-            0x25.toByte(),
-            0xDF.toByte(),
-            0x05.toByte(),
-            0x07.toByte(),
-            0x19.toByte(),
-            0x04.toByte(),
-            0x29.toByte(),
-            0xDF.toByte(),
-            0x81.toByte(),
-            0x00.toByte()
-        )
 
-
-    private val descriptors = byteArrayOf(
-        // HID descriptor
-        0x09, // bLength
-        0x21, // bDescriptorType
-        0x11, 0x01, // bcdHID
-        0x00, // bCountryCode
-        0x01, // bNumDescriptors
-        0x22, // bDescriptorType
-        0x30, 0x00, // wDescriptorLength (48 in decimal)
-
-        // Report descriptor - 4 buttons, 1 X/Y joystick
-        0x05, 0x01,        // USAGE_PAGE (Generic Desktop)
-        0x09, 0x05,        // USAGE (Game Pad)
-        0xa1.toByte(), 0x01, // COLLECTION (Application)
-        0xa1.toByte(), 0x00, //   COLLECTION (Physical)
-        0x05, 0x09,        //     USAGE_PAGE (Button)
-        0x19, 0x01,        //     USAGE_MINIMUM (Button 1)
-        0x29, 0x04,        //     USAGE_MAXIMUM (Button 4)
-        0x15, 0x00,        //     LOGICAL_MINIMUM (0)
-        0x25, 0x01,        //     LOGICAL_MAXIMUM (1)
-        0x75, 0x01,        //     REPORT_SIZE (1)
-        0x95.toByte(), 0x04, //     REPORT_COUNT (4)
-        0x81.toByte(), 0x02, //     INPUT (Data,Var,Abs)
-        0x75, 0x04,        //     REPORT_SIZE (4)
-        0x95.toByte(), 0x01, //     REPORT_COUNT (1)
-        0x81.toByte(), 0x03, //     INPUT (Cnst,Var,Abs)
-        0x05, 0x01,        //     USAGE_PAGE (Generic Desktop)
-        0x09, 0x30,        //     USAGE (X)
-        0x09, 0x31,        //     USAGE (Y)
-        0x15, 0x81.toByte(), //     LOGICAL_MINIMUM (-127)
-        0x25, 0x7f,        //     LOGICAL_MAXIMUM (127)
-        0x75, 0x08,        //     REPORT_SIZE (8)
-        0x95.toByte(), 0x02, //     REPORT_COUNT (2)
-        0x81.toByte(), 0x02, //     INPUT (Data,Var,Abs)
-        0xc0.toByte(),       //   END_COLLECTION
-        0xc0.toByte()        // END_COLLECTION
-    )
-    val des = byteArrayOf(
-        0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)  // 47
-        0x09, 0x06,                    // USAGE (Keyboard)
-        0xa1.toByte(), 0x01,                    // COLLECTION (Application)
-        0x85.toByte(), 0x02,                    //   REPORT_ID (2)
-        0x05, 0x07,                    //   USAGE_PAGE (Keyboard)
-
-        0x19, 0xe0.toByte(),                    //   USAGE_MINIMUM (Keyboard LeftControl)
-        0x29, 0xe7.toByte(),                    //   USAGE_MAXIMUM (Keyboard Right GUI)
-        0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
-        0x25, 0x01,                    //   LOGICAL_MAXIMUM (1)
-        0x75, 0x01,                    //   REPORT_SIZE (1)
-
-        0x95.toByte(), 0x08,                    //   REPORT_COUNT (8)
-        0x81.toByte(), 0x02,                    //   INPUT (Data,Var,Abs)
-        0x95.toByte(), 0x01,                    //   REPORT_COUNT (1)
-        0x75, 0x08,                    //   REPORT_SIZE (8)
-        0x81.toByte(), 0x03,                    //   INPUT (Cnst,Var,Abs)
-
-        0x95.toByte(), 0x06,                    //   REPORT_COUNT (6)
-        0x75, 0x08,                    //   REPORT_SIZE (8)
-        0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
-        0x25, 0x73,                    //   LOGICAL_MAXIMUM (115)
-        0x05, 0x07,                    //   USAGE_PAGE (Keyboard)
-
-        0x19, 0x00,                    //   USAGE_MINIMUM (Reserved (no event indicated))
-        0x29, 0x73,                    //   USAGE_MAXIMUM (Keyboard Application)
-        0x81.toByte(), 0x00,                    //   INPUT (Data,Ary,Abs)
-        0xc0.toByte(),                          // END_COLLECTION
-
-    )
-
-    private val descriptor = byteArrayOf( // HID descriptor 0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
-        0x09, 0x06,        // Usage (Keyboard)
-        0xA1.toByte(), 0x01,        // Collection (Application)
-        0x85.toByte(), 0x01,        //   Report ID (1)
-        0x05, 0x07,        //   Usage Page (Kbrd/Keypad)
-        0x75, 0x01,        //   Report Size (1)
-        0x95.toByte(), 0x08,        //   Report Count (8)
-        0x19, 0xE0.toByte(),        //   Usage Minimum (0xE0)
-        0x29, 0xE7.toByte(),        //   Usage Maximum (0xE7)
-        0x15, 0x00,        //   Logical Minimum (0)
-        0x25, 0x01,        //   Logical Maximum (1)
-        0x81.toByte(), 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-        0x95.toByte(), 0x06,        //   Report Count (6)
-        0x75, 0x08,        //   Report Size (8)
-        0x15, 0x00,        //   Logical Minimum (0)
-        0x25, 0x7f,        //   Logical Maximum (127)
-        0x05, 0x07,        //   Usage Page (Kbrd/Keypad)
-        0x19, 0x00,        //   Usage Minimum (0x00)
-        0x29, 0x7f,        //   Usage Maximum (0x7f)
-        0x81.toByte(), 0x00,        //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    private val descriptor = byteArrayOf(
+        // HID descriptor 0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+        0x09,
+        0x06,        // Usage (Keyboard)
+        0xA1.toByte(),
+        0x01,        // Collection (Application)
+        0x85.toByte(),
+        0x01,        //   Report ID (1)
+        0x05,
+        0x07,        //   Usage Page (Kbrd/Keypad)
+        0x75,
+        0x01,        //   Report Size (1)
+        0x95.toByte(),
+        0x08,        //   Report Count (8)
+        0x19,
+        0xE0.toByte(),        //   Usage Minimum (0xE0)
+        0x29,
+        0xE7.toByte(),        //   Usage Maximum (0xE7)
+        0x15,
+        0x00,        //   Logical Minimum (0)
+        0x25,
+        0x01,        //   Logical Maximum (1)
+        0x81.toByte(),
+        0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+        0x95.toByte(),
+        0x06,        //   Report Count (6)
+        0x75,
+        0x08,        //   Report Size (8)
+        0x15,
+        0x00,        //   Logical Minimum (0)
+        0x25,
+        0x7f,        //   Logical Maximum (127)
+        0x05,
+        0x07,        //   Usage Page (Kbrd/Keypad)
+        0x19,
+        0x00,        //   Usage Minimum (0x00)
+        0x29,
+        0x7f,        //   Usage Maximum (0x7f)
+        0x81.toByte(),
+        0x00,        //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
         0xC0.toByte(),              // End Collection
-        0x05, 0x0C,        // Usage Page (Consumer)
-        0x09, 0x01,        // Usage (Consumer Control)
-        0xA1.toByte(), 0x01,        // Collection (Application)
-        0x85.toByte(), 0x02,        //   Report ID (2)
-        0x05, 0x0C,        //   Usage Page (Consumer)
-        0x15, 0x00,        //   Logical Minimum (0)
-        0x25, 0x01,        //   Logical Maximum (1)
-        0x75, 0x01,        //   Report Size (1)
-        0x95.toByte(), 0x08,        //   Report Count (8)
-        0x09, 0xB5.toByte(),        //   Usage (Scan Next Track)
-        0x09, 0xB6.toByte(),        //   Usage (Scan Previous Track)
-        0x09, 0xB7.toByte(),        //   Usage (Stop)
-        0x09, 0xB8.toByte(),        //   Usage (Eject)
-        0x09, 0xCD.toByte(),        //   Usage (Play/Pause)
-        0x09, 0xE2.toByte(),        //   Usage (Mute)
-        0x09, 0xE9.toByte(),        //   Usage (Volume Increment)
-        0x09, 0xEA.toByte(),        //   Usage (Volume Decrement)
-        0x81.toByte(), 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+        0x05,
+        0x0C,        // Usage Page (Consumer)
+        0x09,
+        0x01,        // Usage (Consumer Control)
+        0xA1.toByte(),
+        0x01,        // Collection (Application)
+        0x85.toByte(),
+        0x02,        //   Report ID (2)
+        0x05,
+        0x0C,        //   Usage Page (Consumer)
+        0x15,
+        0x00,        //   Logical Minimum (0)
+        0x25,
+        0x01,        //   Logical Maximum (1)
+        0x75,
+        0x01,        //   Report Size (1)
+        0x95.toByte(),
+        0x08,        //   Report Count (8)
+        0x09,
+        0xB5.toByte(),        //   Usage (Scan Next Track)
+        0x09,
+        0xB6.toByte(),        //   Usage (Scan Previous Track)
+        0x09,
+        0xB7.toByte(),        //   Usage (Stop)
+        0x09,
+        0xB8.toByte(),        //   Usage (Eject)
+        0x09,
+        0xCD.toByte(),        //   Usage (Play/Pause)
+        0x09,
+        0xE2.toByte(),        //   Usage (Mute)
+        0x09,
+        0xE9.toByte(),        //   Usage (Volume Increment)
+        0x09,
+        0xEA.toByte(),        //   Usage (Volume Decrement)
+        0x81.toByte(),
+        0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
         0xC0.toByte(),              // End Collection
 
-        0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
-        0x09, 0x02,                    // USAGE (Mouse)
-        0xa1.toByte(), 0x01,                    // COLLECTION (Application)
-        0x85.toByte(), 0x03,                    //   Report ID (3)
-        0x09, 0x01,                    //   USAGE (Pointer)
-        0xa1.toByte(), 0x00,                    //   COLLECTION (Physical)
-        0x05, 0x09,                    //     USAGE_PAGE (Button)
-        0x19, 0x01,                    //     USAGE_MINIMUM (Button 1)
-        0x29, 0x03,                    //     USAGE_MAXIMUM (Button 3)
-        0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
-        0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
-        0x95.toByte(), 0x03,                    //     REPORT_COUNT (3)
-        0x75, 0x01,                    //     REPORT_SIZE (1)
-        0x81.toByte(), 0x02,                    //     INPUT (Data,Var,Abs)
-        0x95.toByte(), 0x01,                    //     REPORT_COUNT (1)
-        0x75, 0x05,                    //     REPORT_SIZE (5)
-        0x81.toByte(), 0x03,                    //     INPUT (Cnst,Var,Abs)
-        0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
-        0x09, 0x30,                    //     USAGE (X)
-        0x09, 0x31,                    //     USAGE (Y)
-        0x15, 0x81.toByte(),                    //     LOGICAL_MINIMUM (-127)
-        0x25, 0x7f,                    //     LOGICAL_MAXIMUM (127)
-        0x75, 0x08,                    //     REPORT_SIZE (8)
-        0x95.toByte(), 0x02,                    //     REPORT_COUNT (2)
-        0x81.toByte(), 0x06,                    //     INPUT (Data,Var,Rel)
+        0x05,
+        0x01,                    // USAGE_PAGE (Generic Desktop)
+        0x09,
+        0x02,                    // USAGE (Mouse)
+        0xa1.toByte(),
+        0x01,                    // COLLECTION (Application)
+        0x85.toByte(),
+        0x03,                    //   Report ID (3)
+        0x09,
+        0x01,                    //   USAGE (Pointer)
+        0xa1.toByte(),
+        0x00,                    //   COLLECTION (Physical)
+        0x05,
+        0x09,                    //     USAGE_PAGE (Button)
+        0x19,
+        0x01,                    //     USAGE_MINIMUM (Button 1)
+        0x29,
+        0x03,                    //     USAGE_MAXIMUM (Button 3)
+        0x15,
+        0x00,                    //     LOGICAL_MINIMUM (0)
+        0x25,
+        0x01,                    //     LOGICAL_MAXIMUM (1)
+        0x95.toByte(),
+        0x03,                    //     REPORT_COUNT (3)
+        0x75,
+        0x01,                    //     REPORT_SIZE (1)
+        0x81.toByte(),
+        0x02,                    //     INPUT (Data,Var,Abs)
+        0x95.toByte(),
+        0x01,                    //     REPORT_COUNT (1)
+        0x75,
+        0x05,                    //     REPORT_SIZE (5)
+        0x81.toByte(),
+        0x03,                    //     INPUT (Cnst,Var,Abs)
+        0x05,
+        0x01,                    //     USAGE_PAGE (Generic Desktop)
+        0x09,
+        0x30,                    //     USAGE (X)
+        0x09,
+        0x31,                    //     USAGE (Y)
+        0x15,
+        0x81.toByte(),                    //     LOGICAL_MINIMUM (-127)
+        0x25,
+        0x7f,                    //     LOGICAL_MAXIMUM (127)
+        0x75,
+        0x08,                    //     REPORT_SIZE (8)
+        0x95.toByte(),
+        0x02,                    //     REPORT_COUNT (2)
+        0x81.toByte(),
+        0x06,                    //     INPUT (Data,Var,Rel)
         0xc0.toByte(),                          //   END_COLLECTION
         0xc0.toByte(),                          // END_COLLECTION
 
         // 69 bytes
-        0x05, 0x01,                     // Usage Page (Generic Desktop)
-        0x09, 0x05,                     // Usage (Game Pad)
-        0xa1.toByte(), 0x01,                     // Collection (Application)
-        0x85.toByte(), 0x04,                     //   Report ID (4)
+        0x05,
+        0x01,                     // Usage Page (Generic Desktop)
+        0x09,
+        0x05,                     // Usage (Game Pad)
+        0xa1.toByte(),
+        0x01,                     // Collection (Application)
+        0x85.toByte(),
+        0x04,                     //   Report ID (4)
 
-        0x05, 0x01,                     //     Usage Page (Generic Desktop)
-        0x09, 0x00,                     //     Usage (Undefined)
-        0x75, 0x08,                     //     Report Size (8)
-        0x95.toByte(), 0x01,                     //     Report Count (1)
-        0x81.toByte(), 0x03,                     //     Input (Constant, Variable, Absolute)
+        0x05,
+        0x01,                     //     Usage Page (Generic Desktop)
+        0x09,
+        0x00,                     //     Usage (Undefined)
+        0x75,
+        0x08,                     //     Report Size (8)
+        0x95.toByte(),
+        0x01,                     //     Report Count (1)
+        0x81.toByte(),
+        0x03,                     //     Input (Constant, Variable, Absolute)
 
-        0xa1.toByte(), 0x00,                     //   Collection (Physical)
-        0x05, 0x09,                     //     Usage Page (Button)
-        0x19, 0x01,                     //     Usage Minimum (Button 1)
-        0x29, 0x10,                     //     Usage Maximum (Button 16)
-        0x15, 0x00,                     //     Logical Minimum (0)
-        0x25, 0x01,                     //     Logical Maximum (1)
-        0x75, 0x01,                     //     Report Size (1)
-        0x95.toByte(), 0x10,                     //     Report Count (16)
-        0x81.toByte(), 0x02,                     //     Input (Data, Variable, Absolute)
+        0xa1.toByte(),
+        0x00,                     //   Collection (Physical)
+        0x05,
+        0x09,                     //     Usage Page (Button)
+        0x19,
+        0x01,                     //     Usage Minimum (Button 1)
+        0x29,
+        0x10,                     //     Usage Maximum (Button 16)
+        0x15,
+        0x00,                     //     Logical Minimum (0)
+        0x25,
+        0x01,                     //     Logical Maximum (1)
+        0x75,
+        0x01,                     //     Report Size (1)
+        0x95.toByte(),
+        0x10,                     //     Report Count (16)
+        0x81.toByte(),
+        0x02,                     //     Input (Data, Variable, Absolute)
 
-        0x75, 0x10,                   //     Report Size (16)
-        0x16, 0x00, 0x80.toByte(),             //     Logical Minimum (-32768)
-        0x26, 0xff.toByte(), 0x7f,             //     Logical Maximum (32767)
-        0x36, 0x00, 0x80.toByte(),             //     Physical Minimum (-32768)
-        0x46, 0xff.toByte(), 0x7f,             //     Physical Maximum (32767)
-        0x05, 0x01,                   //     Usage Page (Generic Desktop)
-        0x09, 0x01,                   //     Usage (Pointer)
-        0xa1.toByte(), 0x00,                   //     Collection (Physical)
-        0x95.toByte(), 0x02,                   //       Report Count (2)
-        0x05, 0x01,                   //       Usage Page (Generic Desktop)
-        0x09, 0x30,                   //       Usage (X)
-        0x09, 0x31,                   //       Usage (Y)
-        0x81.toByte(), 0x02,                   //       Input (Data, Variable, Absolute)
+        0x75,
+        0x10,                   //     Report Size (16)
+        0x16,
+        0x00,
+        0x80.toByte(),             //     Logical Minimum (-32768)
+        0x26,
+        0xff.toByte(),
+        0x7f,             //     Logical Maximum (32767)
+        0x36,
+        0x00,
+        0x80.toByte(),             //     Physical Minimum (-32768)
+        0x46,
+        0xff.toByte(),
+        0x7f,             //     Physical Maximum (32767)
+        0x05,
+        0x01,                   //     Usage Page (Generic Desktop)
+        0x09,
+        0x01,                   //     Usage (Pointer)
+        0xa1.toByte(),
+        0x00,                   //     Collection (Physical)
+        0x95.toByte(),
+        0x02,                   //       Report Count (2)
+        0x05,
+        0x01,                   //       Usage Page (Generic Desktop)
+        0x09,
+        0x30,                   //       Usage (X)
+        0x09,
+        0x31,                   //       Usage (Y)
+        0x81.toByte(),
+        0x02,                   //       Input (Data, Variable, Absolute)
         0xc0.toByte(),                         //     End Collection
         0xc0.toByte(),                         //   End Collection
         0xc0.toByte(),                         // End Collection
@@ -391,7 +372,7 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                 ActivityCompat.requestPermissions(this, permissionList.toTypedArray(), 1000)
             } else {
                 // 권한이 있는 경우
-                Toast.makeText(this, "카메라를 실행합니다", Toast.LENGTH_LONG).show()
+//                Toast.makeText(this, "카메라를 실행합니다", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -490,7 +471,8 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                                     "onConnectionStateChanged: device=$device deviceName=${device.name} state=${states.value}"
                                 )
                             }
-                        })
+                        }
+                    )
                 }
             }
 
@@ -502,7 +484,31 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
 
         }, BluetoothProfile.HID_DEVICE)
     }
+    @SuppressLint("Recycle")
+    private fun intervalSensing(context: Context, text: String)
+    {
+//            interval 0.1s
+        var fileName = "dataname"
 
+        val values = ContentValues()
+
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, "${fileName}_${SystemClock.uptimeMillis()}.csv");   // file name
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "csv/plain");
+        values.put(MediaStore.Images.Media.RELATIVE_PATH, "Documents/CameraX_test_App")
+
+
+
+        val extVolumeUri = MediaStore.Files.getContentUri("external")
+        val fileUri = context.contentResolver.insert(extVolumeUri, values)
+
+        val outputStream = context.contentResolver.openOutputStream(fileUri!!)
+//        toast?.cancel()
+//        toast = Toast.makeText(context, "Start Sensing", Toast.LENGTH_SHORT)
+//        toast!!.show()
+        val bytes: ByteArray = text.toByteArray()
+        outputStream!!.write(bytes)
+        outputStream.close()
+    }
     private fun btListDevices() {
         if ((ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED)
             || (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)) {
@@ -534,7 +540,59 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
     @SuppressLint("RestrictedApi", "WrongConstant")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val t = Thread(Runnable{
+
+            run() {
+                for(i:Int in 1..10) {
+                    for(time:Int in 3 downTo 1) {
+                        Handler(Looper.getMainLooper()).post(Runnable {
+                            toast?.cancel()
+                            toast = Toast.makeText(
+                                this@MainActivity,
+                                "$time", Toast.LENGTH_SHORT
+                            )
+                            toast?.show()
+                        })
+                        Thread.sleep(1000)
+
+                    }
+                    Handler(Looper.getMainLooper()).post(Runnable {
+                        toast?.cancel()
+                        toast = Toast.makeText(
+                            this@MainActivity,
+                            "Start", Toast.LENGTH_SHORT
+                        )
+                        toast?.show()
+
+                    })
+                    var str = ""
+                    for(l:Int in 1..50) {
+
+                        str += "$l,"
+                        res.value.results[0].landmarks().forEachIndexed{ index, it ->
+                            str += "${it[0].x()}, ${it[0].y()}, ${it[0].z()},"
+                        }
+                        str += "\n"
+                        Thread.sleep(100)
+
+
+                    }
+                    intervalSensing(this@MainActivity, str)
+                }
+            }
+
+
+        })
+//        t.start()
+
         checkPermission()
+
+        var bluetoothPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (it.resultCode == Activity.RESULT_OK) {
+            }
+        }
+
         mBtAdapter = this.getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
         if (!mBtAdapter.adapter.isEnabled) {
             mBtAdapter.adapter.enable()
@@ -642,16 +700,17 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                                             toast!!.show()
                                         },
                                         onDoubleClick = {
-                                            Log.d(
-                                                "CameraInfos",
-                                                androidx.camera.core.CameraInfo.IMPLEMENTATION_TYPE_CAMERA2_LEGACY
-                                            )
-                                            cameraSelector = CameraSelector
-                                                .Builder()
-                                                .requireLensFacing(3)
-                                                .build()
-                                            startCam(this@MainActivity, previewView, lifecycleOwner)
-
+//                                            Log.d(
+//                                                "CameraInfos",
+//                                                androidx.camera.core.CameraInfo.IMPLEMENTATION_TYPE_CAMERA2_LEGACY
+//                                            )
+//                                            cameraSelector = CameraSelector
+//                                                .Builder()
+//                                                .requireLensFacing(3)
+//                                                .build()
+//                                            startCam(this@MainActivity, previewView, lifecycleOwner)
+//                                            intervalSensing(this@MainActivity, "kiki")
+                                            t.start()
                                         }
 
 
@@ -664,6 +723,7 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
                                         interactionSource = remember { NoRippleInteractionSource() },
                                         onClick = {
 //                                            Nomal()
+
                                             declarationDialogState = true
                                         }
                                     )
