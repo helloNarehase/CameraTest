@@ -96,6 +96,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.nare.cameratest.ui.theme.CameraTestTheme
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import java.io.File
@@ -536,6 +538,20 @@ class MainActivity : ComponentActivity(), HandLandmarkerHelper.LandmarkerListene
             names.value.add(it.name)
             mDevices.value.add(it)
         }
+    }
+    fun prect() {
+        // Batch * 21 * sqLen(10)
+
+        val Batch = 1
+        val SqLen = 10
+        val inputBuffer = Array(Batch){Array(21){FloatArray(SqLen)}}
+        val outputBuffer = Array(Batch){FloatArray(SqLen)}
+
+        Thread{ Runnable {
+            inputBuffer
+
+
+        }}
     }
     @SuppressLint("RestrictedApi", "WrongConstant")
     override fun onCreate(savedInstanceState: Bundle?) {
